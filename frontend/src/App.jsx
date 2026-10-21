@@ -53,9 +53,8 @@ const scrollPositions = new Map()
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
 
 // theme === 'system' follows the OS/browser preference instead of a fixed choice.
-const resolveTheme = theme => theme === 'light' || theme === 'dark'
-  ? theme
-  : (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+// ALYX Lifts is dark only: a stored 'light' or 'system' choice from an old profile is ignored.
+const resolveTheme = () => 'dark'
 
 function applyPrefs(theme, accent) {
   const de = document.documentElement

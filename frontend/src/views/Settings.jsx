@@ -400,7 +400,6 @@ export default function Settings({ page = null, find = null, via = null }) {
   const layout = ['list', 'compact', 'focus'].includes(S.workoutView) ? S.workoutView : 'cards'
   const layoutLabel = { cards: t('Cards'), list: t('List'), compact: t('Compact') }[layout]
   const activeProfile = (S.equipProfiles || []).find(p => p.id === S.activeEquipId)
-  const themeLabel = { dark: t('Dark'), light: t('Light'), system: t('System') }[S.theme || 'dark'] || t('Dark')
   // The value a root row shows, so most questions are answered without opening the page.
   const preview = {
     workout: () => (S.restSec > 0 ? t('{0} rest', fmtRest(S.restSec)) : t('No rest timer')) + ' · ' + layoutLabel,
@@ -409,7 +408,7 @@ export default function Settings({ page = null, find = null, via = null }) {
     plan: () => (mode === 'rotation' ? t('Rotation') : t('Fixed Week')) + ' · ' + shortWeekday(weekStartOf(S) === SUNDAY ? 0 : 1),
     units: () => (S.unit || 'kg') + ' · ' + (LANGS[lang] || lang),
     equipment: () => (S.equipFilterOn && activeProfile ? activeProfile.name : t('Everything')),
-    look: () => themeLabel + ' · ' + accentLabel(S),
+    look: () => accentLabel(S),
     coach: () => (coachLocal?.mode === 'server' ? t('Your server') : coachLocal?.mode === 'byok' ? t('Your API key') : t('Off')),
     data: () => '',
     about: () => 'v' + __APP_VERSION__,
@@ -710,18 +709,6 @@ export default function Settings({ page = null, find = null, via = null }) {
 
     look: () => <>
       <Section footer={DEMO || MOBILE || !user ? undefined : t('synced with your profile')}>
-        <Row icon="moon" iconTint="var(--indigo)" title={t('Theme')}>
-          <Segmented
-            className="seg-inline"
-            options={[
-              { value: 'dark', icon: 'moon', label: t('Dark') },
-              { value: 'light', icon: 'sun', label: t('Light') },
-              { value: 'system', icon: 'gear', label: t('System') },
-            ]}
-            value={S.theme || 'dark'}
-            onChange={v => update(s => { s.theme = v })}
-          />
-        </Row>
         <div className="lrow" style={{ flexWrap: 'wrap', rowGap: 12, paddingBottom: 14 }}>
           <span className="lrow-i" style={{ '--tint': 'var(--purple)' }}><Icon name="palette" /></span>
           <span className="lrow-m"><span className="lrow-t">{t('Accent color')}</span></span>
