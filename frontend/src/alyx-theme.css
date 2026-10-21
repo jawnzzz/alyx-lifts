@@ -1,10 +1,9 @@
 /* ALYX theme: monochrome, from ~/alyx/brand/BRAND.md. Overrides the colour tokens in index.css,
-   so nothing else in the app changes. The html:root prefix outranks the accent presets
-   (:root[data-accent="lime"] and friends); a user's own custom accent is set inline and still wins.
+   so nothing else in the app changes. The html:root prefix outranks index.css; a user's own
+   custom accent is set inline and still wins.
    Status colours (red, green, orange) stay, because they carry meaning in the app. */
 
-html:root,
-html:root[data-accent] {
+html:root {
   /* dark = the terminal block: #0b0b0b ground, #f2f2ef text, #9a9a93 for quiet text */
   --bg:        #0b0b0b;
   --bg-el:     #121211;
@@ -20,13 +19,9 @@ html:root[data-accent] {
   --sep:       #2e2e2c;
   --sep-op:    #2e2e2c;
 
-  --acc:       #f2f2ef;
-  --acc-2:     #c9c9c4;
-  --on-acc:    #0b0b0b;
 }
 
-html:root[data-theme="light"],
-html:root[data-theme="light"][data-accent] {
+html:root[data-theme="light"] {
   --bg:        #ffffff;
   --bg-el:     #ffffff;
   --surface:   #f4f4f1;
@@ -41,9 +36,19 @@ html:root[data-theme="light"][data-accent] {
   --sep:       #dcdcd6;
   --sep-op:    #dcdcd6;
 
-  --acc:       #0b0b0b;
-  --acc-2:     #2e2e2a;
-  --on-acc:    #ffffff;
+}
+
+/* ALYX red: replaces the default accent (lime). Crimson, not the app's error red (#ff453a), so a
+   red button never reads as a failure. The other accent presets and custom colours still work. */
+html:root[data-accent="lime"] {
+  --acc:    #ff4d4d;
+  --acc-2:  #d4202f;
+  --on-acc: #0b0b0b;
+}
+html:root[data-theme="light"][data-accent="lime"] {
+  --acc:    #d4202f;
+  --acc-2:  #a8161f;
+  --on-acc: #ffffff;
 }
 
 /* the wordmark: weight 600, tracked 0.22em, capitals (BRAND.md) */
