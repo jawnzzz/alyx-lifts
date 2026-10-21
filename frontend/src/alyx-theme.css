@@ -1,0 +1,54 @@
+/* ALYX theme: monochrome, from ~/alyx/brand/BRAND.md. Overrides the colour tokens in index.css,
+   so nothing else in the app changes. The html:root prefix outranks the accent presets
+   (:root[data-accent="lime"] and friends); a user's own custom accent is set inline and still wins.
+   Status colours (red, green, orange) stay, because they carry meaning in the app. */
+
+html:root,
+html:root[data-accent] {
+  /* dark = the terminal block: #0b0b0b ground, #f2f2ef text, #9a9a93 for quiet text */
+  --bg:        #0b0b0b;
+  --bg-el:     #121211;
+  --surface:   #181817;
+  --surface-2: #222220;
+  --surface-3: #2e2e2c;
+
+  --label:     #f2f2ef;
+  --label-2:   #9a9a93;
+  --label-3:   #6b6b64;
+  --label-4:   rgba(242, 242, 239, .14);
+
+  --sep:       #2e2e2c;
+  --sep-op:    #2e2e2c;
+
+  --acc:       #f2f2ef;
+  --acc-2:     #c9c9c4;
+  --on-acc:    #0b0b0b;
+}
+
+html:root[data-theme="light"],
+html:root[data-theme="light"][data-accent] {
+  --bg:        #ffffff;
+  --bg-el:     #ffffff;
+  --surface:   #f4f4f1;
+  --surface-2: #ebebe6;
+  --surface-3: #dcdcd6;
+
+  --label:     #0b0b0b;
+  --label-2:   #6b6b64;
+  --label-3:   #8f8f88;
+  --label-4:   rgba(11, 11, 11, .14);
+
+  --sep:       #dcdcd6;
+  --sep-op:    #dcdcd6;
+
+  --acc:       #0b0b0b;
+  --acc-2:     #2e2e2a;
+  --on-acc:    #ffffff;
+}
+
+/* the wordmark: weight 600, tracked 0.22em, capitals (BRAND.md) */
+.alyx-wordmark {
+  font-weight: 600;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
