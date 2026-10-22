@@ -374,7 +374,7 @@ describe('searchSettings', () => {
     expect(searchSettings('Vibrate', guestWeb, tr).map(h => h.title)).toEqual(['Vibrate'])
     expect(searchSettings('buzz', guestWeb, tr).map(h => h.title)).toEqual(['Vibrate'])
     expect(searchSettings('pounds', guestWeb, tr).map(h => h.title)).toEqual(['Weight unit'])
-    expect(searchSettings('dark mode', guestWeb, tr).map(h => h.title)).toEqual([])  // ALYX Lifts is dark only, so there is no theme row
+    expect(searchSettings('dark mode', guestWeb, tr).map(h => h.title)).toEqual([])  // Lindsey Lifts is dark only, so there is no theme row
     expect(searchSettings('gif', guestWeb, tr).map(h => h.title)).toEqual(['Exercise animations'])
     expect(searchSettings('RÉST TIMER', guestWeb, tr)[0].title).toBe('Rest timer')
     expect(fold('Thème')).toBe('theme')

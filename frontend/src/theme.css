@@ -1,0 +1,52 @@
+/* Lindsey Lifts theme: black and red, a product of Alyx Labs. Overrides the colour tokens in
+   index.css, so nothing else in the app changes. The html:root prefix outranks index.css; a
+   user's own custom accent is set inline and still wins. Status colours (green, orange, blue)
+   stay, because they carry meaning in the app. */
+
+html:root {
+  /* surfaces: true black ground, near-black cards */
+  --bg:        #000000;
+  --bg-el:     #0a0a0a;
+  --surface:   #141414;
+  --surface-2: #1e1e1e;
+  --surface-3: #2a2a2a;
+
+  --label:     #ffffff;
+  --label-2:   #a8a8a8;
+  --label-3:   #6e6e6e;
+  --label-4:   rgba(255, 255, 255, .14);
+
+  --sep:       #2a2a2a;
+  --sep-op:    #2a2a2a;
+
+  /* layout: sharper corners than the stock rounded look */
+  --r-sm:   6px;
+  --r:      8px;
+  --r-lg:   10px;
+  --r-xl:   14px;
+  --r-card: 10px;
+}
+
+/* Lindsey red: replaces the default accent (lime). Not the app's error red (#ff453a), so a red
+   button never reads as a failure. The other accent presets and custom colours still work. */
+html:root[data-accent="lime"] {
+  --acc:    #f0303c;
+  --acc-2:  #c4202b;
+  --on-acc: #ffffff;
+}
+
+/* the wordmark: heavy, tracked, capitals */
+.alyx-wordmark {
+  font-weight: 800;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+/* "A product of Alyx Labs": quiet, small, tracked */
+.alyx-by {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--label-3);
+}

@@ -53,7 +53,7 @@ const scrollPositions = new Map()
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
 
 // theme === 'system' follows the OS/browser preference instead of a fixed choice.
-// ALYX Lifts is dark only: a stored 'light' or 'system' choice from an old profile is ignored.
+// Lindsey Lifts is dark only: a stored 'light' or 'system' choice from an old profile is ignored.
 const resolveTheme = () => 'dark'
 
 function applyPrefs(theme, accent) {
@@ -61,7 +61,7 @@ function applyPrefs(theme, accent) {
   de.dataset.theme = resolveTheme(theme)
   applyAccent(de, accent, de.dataset.theme)
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.content = de.dataset.theme === 'light' ? '#ffffff' : '#0b0b0b'
+  if (meta) meta.content = de.dataset.theme === 'light' ? '#ffffff' : '#000000'
   if (MOBILE) setSystemBarsLight(de.dataset.theme === 'light')
 }
 

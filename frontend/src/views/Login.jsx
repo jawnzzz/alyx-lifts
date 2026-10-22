@@ -76,7 +76,17 @@ export default function Login() {
     catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(passkeyError(e, t('Sign-in failed'))) }
   }
   const head = <>
-    <h1 className="alyx-wordmark" style={{ fontSize: 'clamp(26px, 8vw, 34px)', margin: '10px 0 8px', paddingLeft: '.22em' }}>ALYX Lifts</h1>
+    <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Lindsey Lifts" style={{ margin: '0 auto', display: 'block' }}>
+      <rect width="100" height="100" rx="14" fill="#0a0a0a" />
+      <g fill="#f0303c" transform="translate(-3 -4)">
+        <rect x="25" y="18" width="14" height="60" rx="2.2" />
+        <rect x="25" y="64" width="54" height="14" rx="2.2" />
+        <rect x="66" y="52" width="7" height="38" rx="1.8" />
+        <rect x="75" y="57" width="6" height="28" rx="1.8" />
+      </g>
+    </svg>
+    <h1 className="alyx-wordmark" style={{ fontSize: 'clamp(24px, 7.5vw, 32px)', margin: '14px 0 6px', paddingLeft: '.2em' }}>Lindsey Lifts</h1>
+    <div className="alyx-by" style={{ marginBottom: 10 }}>A product of Alyx Labs</div>
   </>
   const wrap = { display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '78vh', textAlign: 'center' }
 

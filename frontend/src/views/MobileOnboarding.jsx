@@ -124,7 +124,8 @@ export default function MobileOnboarding() {
   const { chooseLocalMode } = useStore()
   const head = <>
     <div style={{ fontSize: 54, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="dumbbell" /></div>
-    <h1 className="alyx-wordmark" style={{ fontSize: 'clamp(26px, 8vw, 34px)', margin: '10px 0 8px', paddingLeft: '.22em' }}>ALYX Lifts</h1>
+    <h1 className="alyx-wordmark" style={{ fontSize: 'clamp(24px, 7.5vw, 32px)', margin: '10px 0 6px', paddingLeft: '.2em' }}>Lindsey Lifts</h1>
+    <div className="alyx-by" style={{ marginBottom: 10 }}>A product of Alyx Labs</div>
   </>
   const wrap = { display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '78vh', textAlign: 'center' }
   return (
