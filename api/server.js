@@ -91,6 +91,9 @@ const TRUST_PROXY = /^(1|true|yes|on)$/i.test(process.env.TRUST_PROXY || '');
 // baked into each cookie when it's issued, so lowering this never cuts an existing session short.
 const SESSION_DAYS = Math.max(1, +(process.env.SESSION_DAYS || 90) || 90);
 const MAX_BODY = 5 * 1024 * 1024;
+// A trainer's plan is routines and a week, never workouts or media: far below MAX_BODY.
+const TRAINER_PLAN_BYTES = 512 * 1024;
+const TRAINER_PLAN_ROUTINES = 50;
 // Secure cookies require HTTPS; over plain http://localhost the flag would drop the cookie
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
@@ -146,6 +149,11 @@ db.creds = db.creds || [];
 db.subs = db.subs || [];
 db.invites = db.invites || [];
 db.deviceLinks = db.deviceLinks || [];   // unused one-time device links, hashed (device-link.js)
+// Trainer plans (Lindsey Lifts): one record per trainer and client, the latest plan sent and
+// whether the client has applied it. Kept here, never inside the client's state file: PUT
+// /api/data is the client's own document, and a plan written into it would be overwritten by
+// the next sync from a phone that has not seen it.
+db.plans = db.plans || [];
 const isAdmin = user => !!user && (user.admin === true || ADMIN_UIDS.includes(user.id));
 // 0600: db.json holds passkey credential material. It used to be covered by a blanket 0700 on
 // the whole directory; now that the directory stays traversable, the file carries its own mode.
@@ -1957,7 +1965,7 @@ const routes = {
     if (!s) return json(res, 401, { error: 'not signed in' });
     const { user } = s;
     const renew = s.bearer && s.exp - Date.now() < SESSION_DAYS * 86400000 / 2;
-    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) }, ...(renew ? { token: makeSession(user) } : {}) });
+    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user), trainer: user.trainer === true }, ...(renew ? { token: makeSession(user) } : {}) });
   },
 
   'POST /api/register/options': async (req, res) => {
@@ -2414,6 +2422,7 @@ const routes = {
       return {
         id: u.id, name: u.name, created: u.created || null,
         disabled: !!u.disabled, admin: isAdmin(u), invitedBy: u.invitedBy || null,
+        trainer: u.trainer === true, trainerId: u.trainerId || null,
         workouts: workouts.length,
         lastWorkout: last ? last.d : null,
         lastSync: lastSyncOf(u, S),
@@ -2437,6 +2446,7 @@ const routes = {
     json(res, 200, {
       user: {
         id: u.id, name: u.name, created: u.created || null, disabled: !!u.disabled, admin: isAdmin(u), invitedBy: u.invitedBy || null,
+        trainer: u.trainer === true, trainerId: u.trainerId || null,
         // Only on an instance with password sign-in: whether they have one, and until when an
         // unused reset code is good.
         ...(PASSWORD_LOGIN ? { password: hasPassword(u), email: u.email || null, resetUntil: u.pwReset?.exp > Date.now() ? u.pwReset.exp : null } : {})
@@ -2485,6 +2495,9 @@ const routes = {
     db.subs = (db.subs || []).filter(x => x.userId !== u.id);
     dropDeviceLinks(db, u.id);
     presence.delete(u.id);
+    // A deleted trainer leaves no client pointing at nobody; a deleted client leaves no plan behind.
+    db.users.forEach(x => { if (x.trainerId === u.id) delete x.trainerId; });
+    db.plans = db.plans.filter(p => p.trainerId !== u.id && p.clientId !== u.id);
     // The training history and any Coach credential of theirs, both outside db.json.
     try { fs.unlinkSync(stateFile(u.id)); } catch { /* already gone */ }
     try { coachConfig.clearProfileAuth(u.id); } catch { /* nothing stored */ }
@@ -2494,6 +2507,139 @@ const routes = {
     // Logged with the name, because the id is about to mean nothing to anyone reading this back.
     audit(req, 'admin.user.delete', { user: admin, msg: name });
     json(res, 200, { ok: true, id: u.id });
+  },
+
+  /* ---------- trainer: send a plan to a linked client (Lindsey Lifts) ---------- */
+  // The admin makes a profile a trainer and links clients to it, one trainer per client. A
+  // trainer sees their clients' training history and sends them a plan: the routines and,
+  // optionally, the week, in the same bundle format a plan file uses. The client applies it from
+  // their Plan tab (frontend lib/trainer-plan.js), which is the only place it touches their data.
+  'POST /api/admin/user/trainer': async (req, res) => {
+    const admin = requireAdmin(req, res); if (!admin) return;
+    const body = await readBody(req);
+    const u = db.users.find(x => x.id === body.id);
+    if (!u) return json(res, 404, { error: 'no such user' });
+    if (typeof body.trainer !== 'boolean') return json(res, 400, { error: 'trainer must be true or false' });
+    if (body.trainer) {
+      if (u.trainerId) return json(res, 400, { error: 'a client cannot also be a trainer' });
+      u.trainer = true;
+    } else {
+      delete u.trainer;
+      db.users.forEach(x => { if (x.trainerId === u.id) delete x.trainerId; });
+      db.plans = db.plans.filter(p => p.trainerId !== u.id);
+    }
+    saveDb();
+    audit(req, body.trainer ? 'admin.trainer.on' : 'admin.trainer.off', { user: admin, target: u });
+    json(res, 200, { ok: true, id: u.id, trainer: u.trainer === true });
+  },
+
+  'POST /api/admin/user/assign-trainer': async (req, res) => {
+    const admin = requireAdmin(req, res); if (!admin) return;
+    const body = await readBody(req);
+    const u = db.users.find(x => x.id === body.id);
+    if (!u) return json(res, 404, { error: 'no such user' });
+    const tid = body.trainerId == null || body.trainerId === '' ? null : String(body.trainerId);
+    if (tid) {
+      const tr = db.users.find(x => x.id === tid);
+      if (!tr || tr.trainer !== true) return json(res, 400, { error: 'that profile is not a trainer' });
+      if (tr.id === u.id) return json(res, 400, { error: 'a trainer cannot be their own client' });
+      if (u.trainer === true) return json(res, 400, { error: 'a trainer cannot also be a client' });
+    }
+    const was = u.trainerId || null;
+    if (tid) u.trainerId = tid; else delete u.trainerId;
+    // A plan from a trainer who is no longer theirs is not theirs to apply.
+    if (was && was !== tid) db.plans = db.plans.filter(p => !(p.clientId === u.id && p.trainerId === was));
+    saveDb();
+    audit(req, 'admin.trainer.assign', { user: admin, target: u, msg: tid || 'none' });
+    json(res, 200, { ok: true, id: u.id, trainerId: u.trainerId || null });
+  },
+
+  'GET /api/trainer/clients': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    if (me.trainer !== true) return json(res, 403, { error: 'not a trainer' });
+    const clients = db.users.filter(u => u.trainerId === me.id).map(u => {
+      const S = readState(u.id) || {};
+      const workouts = records(S.workouts);
+      const last = workouts[workouts.length - 1];
+      const p = db.plans.find(x => x.trainerId === me.id && x.clientId === u.id);
+      return {
+        id: u.id, name: u.name, workouts: workouts.length, lastWorkout: last ? last.d : null,
+        lastSync: lastSyncOf(u, S), disabled: !!u.disabled,
+        plan: p ? { sent: p.sent, status: p.status, doneAt: p.doneAt || null, routines: p.plan.routines.length } : null
+      };
+    });
+    json(res, 200, { clients });
+  },
+
+  // One client's training history, as the admin drill-down shows it, for their own trainer only.
+  'GET /api/trainer/client': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    if (me.trainer !== true) return json(res, 403, { error: 'not a trainer' });
+    const id = new URL(req.url, 'http://x').searchParams.get('id');
+    const u = db.users.find(x => x.id === id && x.trainerId === me.id);
+    if (!u) return json(res, 404, { error: 'no such client' });
+    const S = readState(u.id) || {};
+    json(res, 200, {
+      user: { id: u.id, name: u.name },
+      unit: S.unit || 'kg',
+      lastSync: lastSyncOf(u, S),
+      routines: records(S.routines).map(r => ({ id: r.id, name: r.name, emoji: r.emoji, count: records(r.ex).length })),
+      workouts: records(S.workouts).reverse().map(({ media, ...w }) => w)
+    });
+  },
+
+  'POST /api/trainer/send': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    if (me.trainer !== true) return json(res, 403, { error: 'not a trainer' });
+    const body = await readBody(req);
+    const client = db.users.find(x => x.id === body.clientId && x.trainerId === me.id);
+    if (!client) return json(res, 404, { error: 'no such client' });
+    const plan = body.plan;
+    const ok = plan && typeof plan === 'object' && !Array.isArray(plan) && plan.opengym_plan
+      && Array.isArray(plan.routines) && plan.routines.length > 0 && plan.routines.length <= TRAINER_PLAN_ROUTINES
+      && plan.routines.every(r => r && typeof r === 'object' && Array.isArray(r.ex));
+    if (!ok) return json(res, 400, { error: 'not a plan', code: 'not-plan' });
+    if (Buffer.byteLength(JSON.stringify(plan)) > TRAINER_PLAN_BYTES) return json(res, 413, { error: 'plan too large' });
+    const note = typeof body.note === 'string' ? body.note.trim().slice(0, 500) : '';
+    const rec = {
+      id: crypto.randomBytes(9).toString('base64url'), trainerId: me.id, clientId: client.id,
+      sent: Date.now(), note, schedule: body.schedule !== false, plan, status: 'pending'
+    };
+    // One plan per trainer and client: a new send replaces one the client has not seen yet.
+    db.plans = db.plans.filter(p => !(p.trainerId === me.id && p.clientId === client.id));
+    db.plans.push(rec);
+    saveDb();
+    audit(req, 'trainer.plan.send', { user: me, target: client, msg: `${plan.routines.length} routines` });
+    sendPush(client.id, { title: `New plan from ${String(me.name || 'your trainer').slice(0, 40)}`, body: 'Open your Plan tab to apply it.', tag: 'trainer-plan', url: '#/plan' })
+      .catch(() => { /* a push that does not arrive is not a failed send */ });
+    json(res, 200, { ok: true, id: rec.id, sent: rec.sent });
+  },
+
+  // The signed-in client's pending plan, if their trainer has sent one.
+  'GET /api/plan-inbox': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    const plans = db.plans
+      .filter(p => p.clientId === me.id && p.status === 'pending' && p.trainerId === me.trainerId)
+      .map(p => ({ id: p.id, from: { id: p.trainerId, name: db.users.find(u => u.id === p.trainerId)?.name || '' }, sent: p.sent, note: p.note, schedule: p.schedule, plan: p.plan }));
+    json(res, 200, { plans });
+  },
+
+  'POST /api/plan-inbox/done': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    const body = await readBody(req);
+    const p = db.plans.find(x => x.id === body.id && x.clientId === me.id);
+    if (!p) return json(res, 404, { error: 'no such plan' });
+    if (body.status !== 'applied' && body.status !== 'dismissed') return json(res, 400, { error: 'status must be applied or dismissed' });
+    p.status = body.status;
+    p.doneAt = Date.now();
+    saveDb();
+    audit(req, 'trainer.plan.' + body.status, { user: me, msg: p.trainerId });
+    json(res, 200, { ok: true, id: p.id, status: p.status });
   },
 
   'GET /api/admin/invites': async (req, res) => {

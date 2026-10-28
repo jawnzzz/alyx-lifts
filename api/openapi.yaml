@@ -145,6 +145,8 @@ tags:
     description: Web Push (VAPID) subscriptions, rest-timer and test pushes
   - name: activity
     description: Live-workout presence heartbeat
+  - name: trainer
+    description: A trainer sends plans to linked clients; the client applies them from the Plan tab.
   - name: admin
     description: Admin dashboard. Requires an admin session (`ADMIN_UIDS` or `admin:true`)
   - name: media
@@ -2265,6 +2267,181 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "no such user" }
 
+  /api/admin/user/trainer:
+    post:
+      tags: [admin]
+      operationId: adminUserTrainer
+      summary: 'Admin: make a profile a trainer, or stop'
+      description: |
+        Sets or clears the trainer flag. Clearing it unlinks that trainer's clients and drops
+        their pending plans. A profile linked to a trainer cannot also be one. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, trainer]
+              properties:
+                id: { type: string }
+                trainer: { type: boolean }
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+  /api/admin/user/assign-trainer:
+    post:
+      tags: [admin]
+      operationId: adminUserAssignTrainer
+      summary: 'Admin: link a client to a trainer'
+      description: |
+        Links a profile to a trainer (one trainer per client), or unlinks it with a null
+        `trainerId`. A plan from a previous trainer is dropped. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, trainerId]
+              properties:
+                id: { type: string }
+                trainerId: { type: [string, "null"] }
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+  /api/trainer/clients:
+    get:
+      tags: [trainer]
+      operationId: trainerClients
+      summary: 'List my clients'
+      description: |
+        The signed-in trainer's linked clients with workout counts, last sync and the status of
+        the last plan sent.
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+  /api/trainer/client:
+    get:
+      tags: [trainer]
+      operationId: trainerClient
+      summary: 'One client's training history'
+      description: |
+        A linked client's routines and workouts (without photos or videos), as the admin
+        drill-down shows them. Query parameter `id`.
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+  /api/trainer/send:
+    post:
+      tags: [trainer]
+      operationId: trainerSend
+      summary: 'Send a plan to a client'
+      description: |
+        Stores a plan for a linked client, replacing one already sent to them, and notifies
+        them. `plan` is a plan-file bundle (`opengym_plan`, `routines`, `week`, `unit`).
+        Answers 400 `not-plan` for anything else and 413 above 512 KB. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, plan]
+              properties:
+                clientId: { type: string }
+                plan: { type: object }
+                note: { type: string, maxLength: 500 }
+                schedule: { type: boolean, description: Whether the week comes too. Default true. }
+      responses:
+        '200':
+          description: Plan stored.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+  /api/plan-inbox:
+    get:
+      tags: [trainer]
+      operationId: planInbox
+      summary: 'My pending plan from my trainer'
+      description: |
+        The plan the signed-in profile's trainer has sent and they have not applied or
+        dismissed yet. An empty list when there is none.
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+  /api/plan-inbox/done:
+    post:
+      tags: [trainer]
+      operationId: planInboxDone
+      summary: 'Mark a sent plan applied or dismissed'
+      description: |
+        Records what the client did with a plan. The plan itself is applied on the device.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, status]
+              properties:
+                id: { type: string }
+                status: { type: string, enum: [applied, dismissed] }
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
   /api/admin/invites:
     get:
       tags: [admin]
