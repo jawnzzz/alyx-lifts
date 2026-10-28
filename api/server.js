@@ -1102,7 +1102,7 @@ function loginTarget(body) {
 }
 const acctKey = u => 'acct:' + u.id;
 const passkeyCount = u => db.creds.filter(c => c.userId === u.id).length;
-const publicUser = u => ({ id: u.id, name: u.name, admin: isAdmin(u) });
+const publicUser = u => ({ id: u.id, name: u.name, admin: isAdmin(u), ...(u.trainer === true ? { trainer: true } : {}) });
 const POLICY_ERRORS = {
   'too-short': `the password needs at least ${MIN_LENGTH} characters`,
   'too-long': `the password can have at most ${MAX_LENGTH} characters`,
@@ -1965,7 +1965,7 @@ const routes = {
     if (!s) return json(res, 401, { error: 'not signed in' });
     const { user } = s;
     const renew = s.bearer && s.exp - Date.now() < SESSION_DAYS * 86400000 / 2;
-    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user), trainer: user.trainer === true }, ...(renew ? { token: makeSession(user) } : {}) });
+    json(res, 200, { user: publicUser(user), ...(renew ? { token: makeSession(user) } : {}) });
   },
 
   'POST /api/register/options': async (req, res) => {
@@ -2043,7 +2043,7 @@ const routes = {
     });
     saveDb();
     audit(req, 'auth.register.ok', { user, msg: invite ? invite.code : null });
-    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user) });
+    json(res, 200, { user: publicUser(user) }, { 'Set-Cookie': sessionCookie(user) });
   },
 
   'POST /api/login/options': async (req, res) => {
@@ -2105,7 +2105,7 @@ const routes = {
       return json(res, 403, { error: 'this account has been disabled', code: 'disabled' });
     }
     audit(req, 'auth.login.ok', { user });
-    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user) });
+    json(res, 200, { user: publicUser(user) }, { 'Set-Cookie': sessionCookie(user) });
   },
 
   // Reads the session purely so the sign-out can be recorded; the cookie is cleared either way.
@@ -2164,7 +2164,7 @@ const routes = {
       return json(res, 400, { error: 'invalid or expired code', code: 'pair-invalid' });
     }
     audit(req, 'auth.pair.ok', { user });
-    json(res, 200, { token: makeSession(user), user: { id: user.id, name: user.name, admin: isAdmin(user) } });
+    json(res, 200, { token: makeSession(user), user: publicUser(user) });
   },
 
   // Absent entirely while PASSWORD_LOGIN is off, so each of them is a plain 404.

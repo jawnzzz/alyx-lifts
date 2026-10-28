@@ -49,8 +49,17 @@ function UserDetail({ id, onChanged, close }) {
   const toast = useUI(s => s.toast)
   const openSheet = useUI(s => s.openSheet)
   useEffect(() => { api('/api/admin/user?id=' + encodeURIComponent(id)).then(setD).catch(e => toast(e.message)) }, [id])
+  // Trainer plans (Lindsey Lifts): the list of trainers, for the "linked to" picker.
+  const [trainers, setTrainers] = useState([])
+  useEffect(() => { api('/api/admin/users').then(r => setTrainers(r.users.filter(x => x.trainer))).catch(() => {}) }, [id])
   if (!d) return <div className="muted small">Loading…</div>
   const u = d.user
+  const setTrainer = trainer => api('/api/admin/user/trainer', { method: 'POST', body: JSON.stringify({ id: u.id, trainer }) })
+    .then(() => { toast(trainer ? u.name + ' is a trainer' : u.name + ' is no longer a trainer'); onChanged(); close() })
+    .catch(e => toast(e.message))
+  const assignTrainer = trainerId => api('/api/admin/user/assign-trainer', { method: 'POST', body: JSON.stringify({ id: u.id, trainerId: trainerId || null }) })
+    .then(() => { toast(trainerId ? 'Linked to ' + (trainers.find(x => x.id === trainerId)?.name || 'trainer') : 'Unlinked from their trainer'); onChanged(); close() })
+    .catch(e => toast(e.message))
   // The document comes straight off the user's state file. PUT /api/data drops null and
   // shapeless entries now, but a file written before it did still answers with them, and this
   // sheet renders outside the route's ErrorBoundary: one throw here blanked the whole app and
@@ -139,6 +148,24 @@ function UserDetail({ id, onChanged, close }) {
           : 'No password yet. A one-time code lets them set one. That’s the way back in after losing their only passkey.'}</div>
       </>}
     </>}
+    <h4 className="sec">Trainer</h4>
+    {u.trainer
+      ? <>
+        <div className="row" style={{ gap: 6, marginBottom: 8 }}><span className="adm-pill acc">trainer</span></div>
+        <button className="btn" style={{ marginBottom: 4 }} onClick={() => confirmSheet({ title: 'Stop ' + u.name + ' being a trainer?', message: 'Their clients are unlinked and any plan waiting for them is dropped. Routines clients already applied stay.', confirmText: 'Stop', danger: true, onConfirm: () => setTrainer(false) })}>Stop being a trainer</button>
+        <div className="adm-hint">Trainers send routines to the clients linked to them, from their own Plan tab.</div>
+      </>
+      : <>
+        <label className="row between" style={{ gap: 12, marginBottom: 6 }}>
+          <span className="small">Linked to</span>
+          <select className="input" style={{ maxWidth: 220 }} value={u.trainerId || ''} onChange={e => assignTrainer(e.target.value)}>
+            <option value="">No trainer</option>
+            {trainers.filter(x => x.id !== u.id).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </label>
+        <div className="adm-hint">{trainers.length ? 'Their trainer can see their workouts and send them plans to apply.' : 'No trainers yet. Open a profile and make it a trainer first.'}</div>
+        {!u.trainerId && <button className="btn" style={{ margin: '10px 0 4px' }} onClick={() => setTrainer(true)}>Make {u.name} a trainer</button>}
+      </>}
     <h4 className="sec">Workout history</h4>
     {workouts.length ? <div className="list" style={{ gap: 0 }}>
       {workouts.slice(0, 60).map(w => <div key={w.id} className="row between" style={{ padding: '9px 2px', borderBottom: '1px solid var(--sep)' }}>
