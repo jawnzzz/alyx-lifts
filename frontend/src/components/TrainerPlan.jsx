@@ -106,6 +106,12 @@ export function TrainerPlanCard() {
   }, [user?.id])
   const p = plans[0]
   if (!user || !p) return null
+  // The plan is written in the trainer's unit. A client still on the other one is switched to it
+  // on Apply, through the same conversion Settings' "Convert the numbers" uses, so a 70 lb squat
+  // reads 70 lb on pound plates instead of 31.75 kg.
+  const mine = S.unit || 'kg'
+  const theirs = p.plan?.unit === 'lb' || p.plan?.unit === 'kg' ? p.plan.unit : mine
+  const switchUnit = theirs !== mine
   const names = (p.plan?.routines || []).map(r => r.name).filter(Boolean)
   const replaces = replacedBy(S, p.plan, p.from.id).map(r => r.name)
   const done = status => api('/api/plan-inbox/done', { method: 'POST', body: JSON.stringify({ id: p.id, status }) })
@@ -114,6 +120,7 @@ export function TrainerPlanCard() {
     if (busy) return
     setBusy(true)
     let res
+    if (switchUnit) useStore.getState().setUnit(theirs)
     try { update(s => { res = applyTrainerPlan(s, p.plan, { trainerId: p.from.id, schedule: p.schedule !== false }) }) }
     catch (e) { toast(e.message); setBusy(false); return }
     done('applied')
@@ -134,6 +141,7 @@ export function TrainerPlanCard() {
     {replaces.length > 0 && <div className="dim small" style={{ marginBottom: 6 }}>{t('Replaces: {0}', replaces.join(', '))}</div>}
     {p.schedule !== false && Object.keys(p.plan?.week || {}).length > 0 &&
       <div className="dim small" style={{ marginBottom: 6 }}>{t('Your weekly schedule is updated too.')}</div>}
+    {switchUnit && <div className="small" style={{ marginBottom: 6 }}>{t('Applying also switches your app to {0}, the unit {1} writes in. Weights you already logged are converted.', theirs, p.from.name)}</div>}
     <div className="dim small" style={{ marginBottom: 12 }}>{t('Your workout history and progress stay as they are.')}</div>
     <Button variant="primary" disabled={busy} onClick={apply}>{t('Apply')}</Button>
     <div style={{ height: 6 }} />
