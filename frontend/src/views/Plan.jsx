@@ -19,7 +19,7 @@ import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { DEMO } from '../lib/demo.js'
 import { MOBILE } from '../lib/mobile.js'
 import { coachAvailable } from '../lib/coach.js'
-import { TrainerPlanCard, sendPlanSheet } from '../components/TrainerPlan.jsx'
+import { sendPlanSheet, nutritionForClientSheet } from '../components/TrainerPlan.jsx'
 import { queueOf, queueView } from '../lib/queue.js'
 import { deriveSessionName } from '../lib/session-merge.js'
 import { markUndone, undoMarks } from '../lib/sync-merge.js'
@@ -155,7 +155,10 @@ export default function Plan() {
         { icon: 'download', label: t('Import a plan file'), onClick: () => fileRef.current?.click() },
         { icon: 'clipboard', label: t('Load starter plan'), onClick: starterPlanSheet },
         // A trainer (Lindsey Lifts) sends routines straight to a linked client's Plan tab.
-        ...(user?.trainer ? [{ icon: 'share', label: t('Send to a client'), sub: t('Your routines land on their Plan tab, ready to apply.'), disabled: !has, onClick: sendPlanSheet }] : []),
+        ...(user?.trainer ? [
+          { icon: 'share', label: t('Plan for a client'), sub: t('Your routines go straight into their app.'), disabled: !has, onClick: sendPlanSheet },
+          { icon: 'note', label: t('Nutrition for a client'), sub: t('Targets, foods to avoid and a meal plan, on their Home screen.'), onClick: nutritionForClientSheet },
+        ] : []),
       ],
     })
   }
@@ -172,7 +175,6 @@ export default function Plan() {
       </div>
     </div>
     <input ref={fileRef} type="file" accept="application/json,.json" onChange={pickFile} hidden />
-    {!DEMO && <TrainerPlanCard />}
     <Segmented className="plan-views" value={view} onChange={setView}
       options={[{ value: 'schedule', label: t('Schedule') }, { value: 'routines', label: t('Routines') }]} />
     {view === 'routines'

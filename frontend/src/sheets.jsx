@@ -60,6 +60,7 @@ import { workoutsOn, backfillStart, backfillEnd, completeBackfill, historyAsOf, 
 import { moveWorkout, sameWorkout, startTimeOf, durationMinOf, setWorkoutDuration, rebuildPrHistory, MAX_DURATION_MIN, endsInFuture } from './lib/workout-date.js'
 import { editCompletedSession, editLeftEmpty, editedRecord, editChangesNothing } from './lib/session-edit.js'
 import { stampWorkout } from './lib/sync-merge.js'
+import { sendSessionSheet } from './components/TrainerPlan.jsx'
 import { weeklyWeights } from './lib/bodyweight.js'
 import { workoutText } from './lib/workout-text.js'
 import { workoutCardModel, layoutWorkoutCard, drawWorkoutCard, viewAspect, CARD_FONT } from './lib/workout-card.js'
@@ -2586,6 +2587,8 @@ function WorkoutDetail({ w, close }) {
     <Button icon="share" onClick={shareAsImage}>{t('Share as image')}</Button>
     <div style={{ height: 8 }} />
     <Button icon="download" onClick={exportFit}>{t('Export as .fit file')}</Button>
+    {/* A trainer logs a client's session in their own app and moves it to the client (Lindsey Lifts). */}
+    {useStore.getState().user?.trainer && <><div style={{ height: 8 }} /><Button icon="share" onClick={() => { close(); sendSessionSheet(w) }}>{t('Add to a client\'s history')}</Button></>}
     <div style={{ height: 10 }} />
     {/* Matched the way the edits above are, not by id: a workout from before ids has none, and
         filtering on `x.id !== undefined` took every other one of them with it. */}

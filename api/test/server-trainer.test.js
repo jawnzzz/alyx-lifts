@@ -33,7 +33,7 @@ async function startServer(t) {
   fs.writeFileSync(path.join(dataDir, 'db.json'), JSON.stringify({
     users: [
       { id: ADMIN, name: 'Lindsey', created: now, admin: true },
-      { id: CLIENT, name: 'Rayiah', created: now },
+      { id: CLIENT, name: 'Client', created: now },
       { id: OTHER, name: 'Mo', created: now }
     ],
     creds: [], subs: [], invites: []
@@ -82,7 +82,7 @@ test('only an admin makes trainers and links clients', async t => {
 test('a trainer sees only their own clients', async t => {
   const h = await linked(t);
   const list = await h.req('GET', '/api/trainer/clients', ADMIN);
-  assert.deepEqual(list.body.clients.map(c => c.name), ['Rayiah']);
+  assert.deepEqual(list.body.clients.map(c => c.name), ['Client']);
   assert.equal(list.body.clients[0].workouts, 1);
   assert.equal((await h.req('GET', '/api/trainer/clients', OTHER)).status, 403);
   assert.equal((await h.req('GET', `/api/trainer/client?id=${CLIENT}`, ADMIN)).status, 200);
@@ -142,4 +142,27 @@ test('a cross-origin send is refused', async t => {
   });
   assert.equal(r.status, 403);
   assert.equal(h.db().plans.length, 0);
+});
+
+test('a session and nutrition reach the client inbox; nutrition replaces, sessions stack', async t => {
+  const h = await linked(t);
+  const W = { d: '2026-11-07', start: 1, end: 2, name: 'Upper B', entries: [{ id: '0025', sets: [{ w: 12, r: 8, done: true }] }] };
+  assert.equal((await h.req('POST', '/api/trainer/session', ADMIN, { clientId: CLIENT, workout: W })).status, 200);
+  assert.equal((await h.req('POST', '/api/trainer/session', ADMIN, { clientId: CLIENT, workout: { ...W, d: '2026-11-14' } })).status, 200);
+  assert.equal((await h.req('POST', '/api/trainer/session', ADMIN, { clientId: CLIENT, workout: { d: 'nope', entries: [] } })).status, 400);
+  assert.equal((await h.req('POST', '/api/trainer/session', ADMIN, { clientId: OTHER, workout: W })).status, 404);
+  const N = { calories: 1700, protein: 115, water: 2.5, steps: 8000, avoid: ['Apple', ' Orange ', ''], meals: 'Breakfast: yogurt' };
+  assert.equal((await h.req('POST', '/api/trainer/nutrition', ADMIN, { clientId: CLIENT, nutrition: N })).status, 200);
+  assert.equal((await h.req('POST', '/api/trainer/nutrition', ADMIN, { clientId: CLIENT, nutrition: { ...N, protein: 120 } })).status, 200);
+  assert.equal((await h.req('POST', '/api/trainer/nutrition', ADMIN, { clientId: CLIENT, nutrition: { calories: -5 } })).status, 400);
+  const got = await h.req('GET', '/api/trainer/nutrition?clientId=' + CLIENT, ADMIN);
+  assert.equal(got.body.nutrition.protein, 120);
+  assert.deepEqual(got.body.nutrition.avoid, ['Apple', 'Orange']);
+  const inbox = (await h.req('GET', '/api/plan-inbox', CLIENT)).body.plans;
+  assert.deepEqual(inbox.map(p => p.kind), ['session', 'session', 'nutrition']);
+  assert.equal(inbox[0].workout.d, '2026-11-07');
+  assert.equal(inbox[2].nutrition.protein, 120);
+  assert.equal((await h.req('GET', '/api/plan-inbox', OTHER)).body.plans.length, 0);
+  assert.equal((await h.req('POST', '/api/plan-inbox/done', CLIENT, { id: inbox[0].id, status: 'applied' })).status, 200);
+  assert.equal(h.db().plans.filter(p => p.kind === 'session').length, 1);
 });

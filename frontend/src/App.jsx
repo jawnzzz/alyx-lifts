@@ -27,6 +27,8 @@ import SyncBanner from './components/SyncBanner.jsx'
 import RestTimer from './components/RestTimer.jsx'
 import TimerFlash from './components/TimerFlash.jsx'
 import { openDeviceLinkRedeem } from './components/Passkeys.jsx'
+import { TrainerInbox } from './components/TrainerPlan.jsx'
+import { DEMO } from './lib/demo.js'
 import Login from './views/Login.jsx'
 import MobileOnboarding from './views/MobileOnboarding.jsx'
 import Home from './views/Home.jsx'
@@ -241,6 +243,8 @@ function Shell() {
       <Modals />
       <Toast />
       <TimerFlash />
+      {/* What a trainer put in this client's app, taken in on its own (Lindsey Lifts). */}
+      {user && !DEMO && <TrainerInbox />}
     </>
   )
 }

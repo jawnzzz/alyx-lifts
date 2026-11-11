@@ -2395,14 +2395,88 @@ paths:
           description: Not allowed for this profile.
         '404':
           description: No such user, client or plan.
+  /api/trainer/session:
+    post:
+      tags: [trainer]
+      operationId: trainerSendSession
+      summary: 'Log a session for a linked client'
+      description: |
+        A workout the trainer logged with the client. The client's app adds it to their history.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, workout]
+              properties:
+                clientId: { type: string }
+                workout: { type: object }
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+  /api/trainer/nutrition:
+    get:
+      tags: [trainer]
+      operationId: trainerGetNutrition
+      summary: 'The last nutrition sent to a client'
+      parameters:
+        - { name: clientId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
+    post:
+      tags: [trainer]
+      operationId: trainerSendNutrition
+      summary: 'Set a linked client''s nutrition'
+      description: |
+        Targets, foods to avoid and a meal plan. Replaces the last one; the client's app copies it
+        into their own data, where they can edit it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, nutrition]
+              properties:
+                clientId: { type: string }
+                nutrition: { type: object }
+      responses:
+        '200':
+          description: OK.
+        '400':
+          description: Bad input.
+        '401':
+          description: Not signed in.
+        '403':
+          description: Not allowed for this profile.
+        '404':
+          description: No such user, client or plan.
   /api/plan-inbox:
     get:
       tags: [trainer]
       operationId: planInbox
-      summary: 'My pending plan from my trainer'
+      summary: 'What my trainer has sent'
       description: |
-        The plan the signed-in profile's trainer has sent and they have not applied or
-        dismissed yet. An empty list when there is none.
+        Plans, sessions and nutrition the signed-in profile's trainer has sent and their app has
+        not taken in yet, oldest first, each with its `kind`. An empty list when there is none.
       responses:
         '200':
           description: OK.

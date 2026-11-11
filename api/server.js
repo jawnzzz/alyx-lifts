@@ -94,6 +94,10 @@ const MAX_BODY = 5 * 1024 * 1024;
 // A trainer's plan is routines and a week, never workouts or media: far below MAX_BODY.
 const TRAINER_PLAN_BYTES = 512 * 1024;
 const TRAINER_PLAN_ROUTINES = 50;
+const TRAINER_SESSION_BYTES = 256 * 1024;
+const TRAINER_NUTRITION_TEXT = 8000;
+const TRAINER_AVOID_ITEMS = 40;
+const kindOf = p => p.kind || 'plan';
 // Secure cookies require HTTPS; over plain http://localhost the flag would drop the cookie
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
@@ -2562,7 +2566,7 @@ const routes = {
       const S = readState(u.id) || {};
       const workouts = records(S.workouts);
       const last = workouts[workouts.length - 1];
-      const p = db.plans.find(x => x.trainerId === me.id && x.clientId === u.id);
+      const p = db.plans.find(x => x.trainerId === me.id && x.clientId === u.id && kindOf(x) === 'plan');
       return {
         id: u.id, name: u.name, workouts: workouts.length, lastWorkout: last ? last.d : null,
         lastSync: lastSyncOf(u, S), disabled: !!u.disabled,
@@ -2609,7 +2613,7 @@ const routes = {
       sent: Date.now(), note, schedule: body.schedule !== false, plan, status: 'pending'
     };
     // One plan per trainer and client: a new send replaces one the client has not seen yet.
-    db.plans = db.plans.filter(p => !(p.trainerId === me.id && p.clientId === client.id));
+    db.plans = db.plans.filter(p => !(p.trainerId === me.id && p.clientId === client.id && kindOf(p) === 'plan'));
     db.plans.push(rec);
     saveDb();
     audit(req, 'trainer.plan.send', { user: me, target: client, msg: `${plan.routines.length} routines` });
@@ -2618,13 +2622,89 @@ const routes = {
     json(res, 200, { ok: true, id: rec.id, sent: rec.sent });
   },
 
-  // The signed-in client's pending plan, if their trainer has sent one.
+  // A session the trainer logged with the client, to land in the client's history. Several can
+  // wait at once (one per session); the client's app adds each to its history on its own.
+  'POST /api/trainer/session': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    if (me.trainer !== true) return json(res, 403, { error: 'not a trainer' });
+    const body = await readBody(req);
+    const client = db.users.find(x => x.id === body.clientId && x.trainerId === me.id);
+    if (!client) return json(res, 404, { error: 'no such client' });
+    const w = body.workout;
+    const ok = w && typeof w === 'object' && !Array.isArray(w) && /^\d{4}-\d{2}-\d{2}$/.test(String(w.d || ''))
+      && Array.isArray(w.entries) && w.entries.length > 0 && w.entries.length <= 100
+      && w.entries.every(e => e && typeof e === 'object' && Array.isArray(e.sets));
+    if (!ok) return json(res, 400, { error: 'not a workout', code: 'not-workout' });
+    if (Buffer.byteLength(JSON.stringify(w)) > TRAINER_SESSION_BYTES) return json(res, 413, { error: 'workout too large' });
+    const rec = {
+      id: crypto.randomBytes(9).toString('base64url'), kind: 'session', trainerId: me.id, clientId: client.id,
+      sent: Date.now(), workout: w, status: 'pending'
+    };
+    db.plans.push(rec);
+    saveDb();
+    audit(req, 'trainer.session.send', { user: me, target: client, msg: w.d });
+    json(res, 200, { ok: true, id: rec.id, sent: rec.sent });
+  },
+
+  // Nutrition targets, foods to avoid and a meal plan. One per trainer and client: a new send
+  // replaces the last. The client's app copies it into their own data, where they can edit it.
+  'POST /api/trainer/nutrition': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    if (me.trainer !== true) return json(res, 403, { error: 'not a trainer' });
+    const body = await readBody(req);
+    const client = db.users.find(x => x.id === body.clientId && x.trainerId === me.id);
+    if (!client) return json(res, 404, { error: 'no such client' });
+    const n = body.nutrition;
+    if (!n || typeof n !== 'object' || Array.isArray(n)) return json(res, 400, { error: 'not nutrition', code: 'not-nutrition' });
+    const num = (v, max) => (v == null || v === '' ? null : Number.isFinite(+v) && +v >= 0 && +v <= max ? Math.round(+v * 10) / 10 : undefined);
+    const clean = {
+      calories: num(n.calories, 10000), protein: num(n.protein, 1000), water: num(n.water, 20), steps: num(n.steps, 100000),
+      avoid: Array.isArray(n.avoid) ? n.avoid.map(a => String(a).trim().slice(0, 60)).filter(Boolean).slice(0, TRAINER_AVOID_ITEMS) : [],
+      meals: typeof n.meals === 'string' ? n.meals.slice(0, TRAINER_NUTRITION_TEXT) : '',
+      note: typeof n.note === 'string' ? n.note.trim().slice(0, 500) : ''
+    };
+    if ([clean.calories, clean.protein, clean.water, clean.steps].includes(undefined)) return json(res, 400, { error: 'a target is out of range', code: 'bad-target' });
+    const rec = {
+      id: crypto.randomBytes(9).toString('base64url'), kind: 'nutrition', trainerId: me.id, clientId: client.id,
+      sent: Date.now(), nutrition: clean, status: 'pending'
+    };
+    db.plans = db.plans.filter(p => !(p.trainerId === me.id && p.clientId === client.id && kindOf(p) === 'nutrition'));
+    db.plans.push(rec);
+    saveDb();
+    audit(req, 'trainer.nutrition.send', { user: me, target: client });
+    sendPush(client.id, { title: `${String(me.name || 'Your trainer').slice(0, 40)} updated your nutrition`, body: 'Open the app to see it.', tag: 'trainer-nutrition', url: '#/' })
+      .catch(() => { /* a push that does not arrive is not a failed send */ });
+    json(res, 200, { ok: true, id: rec.id, sent: rec.sent });
+  },
+
+  // The last nutrition a trainer sent a client, to start the next edit from.
+  'GET /api/trainer/nutrition': async (req, res) => {
+    const me = readSession(req);
+    if (!me) return json(res, 401, { error: 'not signed in' });
+    if (me.trainer !== true) return json(res, 403, { error: 'not a trainer' });
+    const id = new URL(req.url, 'http://x').searchParams.get('clientId');
+    const client = db.users.find(x => x.id === id && x.trainerId === me.id);
+    if (!client) return json(res, 404, { error: 'no such client' });
+    const p = db.plans.find(x => x.trainerId === me.id && x.clientId === client.id && kindOf(x) === 'nutrition');
+    json(res, 200, { nutrition: p ? p.nutrition : null, sent: p ? p.sent : null, status: p ? p.status : null });
+  },
+
+  // What the signed-in client's trainer has sent and their app has not taken in yet: plans,
+  // sessions and nutrition, oldest first. The app applies each on the client's own device.
   'GET /api/plan-inbox': async (req, res) => {
     const me = readSession(req);
     if (!me) return json(res, 401, { error: 'not signed in' });
     const plans = db.plans
       .filter(p => p.clientId === me.id && p.status === 'pending' && p.trainerId === me.trainerId)
-      .map(p => ({ id: p.id, from: { id: p.trainerId, name: db.users.find(u => u.id === p.trainerId)?.name || '' }, sent: p.sent, note: p.note, schedule: p.schedule, plan: p.plan }));
+      .sort((a, b) => a.sent - b.sent)
+      .map(p => ({
+        id: p.id, kind: kindOf(p), from: { id: p.trainerId, name: db.users.find(u => u.id === p.trainerId)?.name || '' }, sent: p.sent,
+        ...(kindOf(p) === 'plan' ? { note: p.note, schedule: p.schedule, plan: p.plan } : {}),
+        ...(kindOf(p) === 'session' ? { workout: p.workout } : {}),
+        ...(kindOf(p) === 'nutrition' ? { nutrition: p.nutrition } : {})
+      }));
     json(res, 200, { plans });
   },
 
@@ -2637,8 +2717,10 @@ const routes = {
     if (body.status !== 'applied' && body.status !== 'dismissed') return json(res, 400, { error: 'status must be applied or dismissed' });
     p.status = body.status;
     p.doneAt = Date.now();
+    // A session lives on in the client's history; db.json need not keep a second copy.
+    if (kindOf(p) === 'session') db.plans = db.plans.filter(x => x !== p);
     saveDb();
-    audit(req, 'trainer.plan.' + body.status, { user: me, msg: p.trainerId });
+    audit(req, `trainer.${kindOf(p)}.${body.status}`, { user: me, msg: p.trainerId });
     json(res, 200, { ok: true, id: p.id, status: p.status });
   },
 
