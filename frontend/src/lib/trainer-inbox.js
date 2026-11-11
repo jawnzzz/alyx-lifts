@@ -35,8 +35,9 @@ export function applyTrainerSession(s, workout, { trainerId, now = Date.now() } 
   if (workout.id != null && s.workouts.some(w => w.id === workout.id)) return false
   const routine = (s.routines || []).find(r => norm(r.name) === norm(workout.name))
   const routineIds = routine ? [routine.id] : []
+  const { unit, ...logged } = workout
   const w = stampWorkout({
-    ...workout, routineIds, routineId: routineIds[0] ?? null, prs: [],
+    ...logged, routineIds, routineId: routineIds[0] ?? null, prs: [],
     ...(trainerId ? { fromTrainer: trainerId } : {}),
   }, now)
   s.workouts = rebuildPrHistory(insertChronological(s.workouts, w), w.entries.map(e => e.id), w)

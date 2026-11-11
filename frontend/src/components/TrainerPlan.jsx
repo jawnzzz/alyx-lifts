@@ -122,7 +122,8 @@ function takeIn(items) {
   const got = []
   for (const p of items) {
     if (taking.has(p.id)) continue
-    if (p.kind === 'plan' && st.S.active) continue
+    // A plan or a session can switch the unit (below), which is not done under a running workout.
+    if (p.kind !== 'nutrition' && st.S.active) continue
     taking.add(p.id)
     try {
       if (p.kind === 'plan') {
@@ -132,6 +133,11 @@ function takeIn(items) {
         useStore.getState().update(s => { applyTrainerPlan(s, p.plan, { trainerId: p.from.id, schedule: p.schedule !== false }) })
         got.push(t('a new plan'))
       } else if (p.kind === 'session') {
+        // Logged in the trainer's unit: the client is switched to it first, as for a plan, so
+        // 70 lb is filed as 70 lb and not as 70 kg.
+        const mine = useStore.getState().S.unit || 'kg'
+        const theirs = p.workout?.unit === 'lb' || p.workout?.unit === 'kg' ? p.workout.unit : mine
+        if (theirs !== mine) useStore.getState().setUnit(theirs)
         useStore.getState().update(s => { applyTrainerSession(s, p.workout, { trainerId: p.from.id }) })
         got.push(t('a session for {0}', fmtDate(p.workout?.d)))
       } else if (p.kind === 'nutrition') {
@@ -158,7 +164,7 @@ function SendSessionSheet({ w, close }) {
   const send = () => {
     if (!client || busy) return
     setBusy(true)
-    api('/api/trainer/session', { method: 'POST', body: JSON.stringify({ clientId: client.id, workout: sessionToSend(w) }) })
+    api('/api/trainer/session', { method: 'POST', body: JSON.stringify({ clientId: client.id, workout: { ...sessionToSend(w), unit: useStore.getState().S.unit || 'kg' } }) })
       .then(() => {
         if (remove) useStore.getState().update(s => { s.workouts = s.workouts.filter(x => !(x === w || (w.id != null && x.id === w.id))) })
         toast(t('Added to {0}\'s history', client.name)); close()
